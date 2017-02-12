@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+
+<html ng-app="chatbox" ng-controller="ctrl">
+    <head>
+        <title>{{title}}</title>
+        <meta charset="utf-8">
+        <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/angular.js/1.6.1/angular.js"></script>
+        <style>
+            .element {
+                float:left;
+                width:100%;
+            }
+        </style>
+    </head>
+    <body class="container">
+
+        <nav class="navbar navbar-light bg-faded">
+            <strong style="padding-left:0;" class="navbar-brand">{{title}}</strong>
+        </nav>
+        <input id="username" ng-model="username" placeholder="{{user_placeholder}}" ng-keypress="activate($event)"></input>
+        <hr>
+        <input id="message" style="display:none;margin-bottom:15px;" ng-model="message" class="element" ng-keypress="send($event)"></input>
+        <small id="preview" ng-model="preview" class="element" style="padding-bottom:10px;">{{preview}}</small>
+        <section id="chat"></section>
+
+    </body>
+    <script>
+
+
+angular.module('chatbox',[])
+
+.controller('ctrl', function($scope) {
+
+    $scope.title = "Chatbox";
+
+    if (!window.WebSocket) {
+        alert("WebSocket not supported by this browser");
+    } else {
+
+        $scope.username = '';
+        $scope.user_placeholder = 'Your Name Here';
+
+        $scope.preview = '';
+
+        $scope.message = '';
+
+        var _send = function(type) {
+            try {
+                connection.send(JSON.stringify({
+                    user:$scope.username || 'unknown',
+                    type:type,
+                    data:$scope.message
+                }));
+            } catch(e) {}
+        }
+
+        $scope.$watch('message', function() {
+            _send('preview');
+        });
+
+        $scope.$watch('preview', function() {
+            if($scope.preview) {
+                document.getElementById('preview').style.display = 'block';
+            } else {
+                document.getElementById('preview').style.display = 'none';
+            }
+        });
+
+        $scope.activate = function(e) {
+            var key = e.which || e.keyCode;
+            if (key === 13) { // 13 is enter
+                if($scope.username) {
+                    document.getElementById('username').style.display='none';
+                    document.getElementById('message').style.display='block';
+                }
+            }
+        }
+
+        $scope.send = function(e) {
+            var key = e.which || e.keyCode;
+            if (key === 13) { // 13 is enter
+                if($scope.message && !$scope.username) {
+                    $scope.user_placeholder = 'Enter your username first';
+                    return;
+                }
+
+                if($scope.username) document.getElementById('username').style.display = 'none';
+                _send('entry');
+                $scope.message = '';
+            }
+        }
+
+        var connection = new WebSocket('ws://localhost:8000');
+        connection.onopen = function () {};
+        connection.onclose = function(event) {};
+        connection.onmessage = function (e) {
+            var e = JSON.parse(e.data);
+ 
+            if(e.user) e.user = e.user.charAt(0).toUpperCase() + e.user.toLowerCase().slice(1);
+            if(e.data) e.data = e.data.charAt(0).toUpperCase() + e.data.slice(1);
+
+            if(e.type === 'preview') {
+                if(e.data) {
+                    $scope.preview = e.user+' is writing...';
+                } else {
+                    $scope.preview = '';
+                }
+                $scope.$apply();
+            } else if(e.type === 'entry') {
+                if(e.data) {
+                    var answer = document.createElement("answer");
+                    answer.style.margin = "0";
+                    answer.style.marginBottom = "5px";
+                    answer.innerHTML = e.user+' : '+e.data;
+                    answer.className="element well";
+                    document.getElementById('chat').insertBefore(answer,document.getElementById('chat').firstChild);
+                    $scope.preview = '';
+                    $scope.$apply();
+                } else {
+                    $scope.message = '';
+                }
+            } else {
+                console.log(e.data);
+            }
+        };
+    }
+})
+    </script>
+</html>
